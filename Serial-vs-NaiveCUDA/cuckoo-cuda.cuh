@@ -99,6 +99,14 @@ private:
     };
     int rehash(const T * const vals, const int n, const int depth);
 
+    /** Inline helper functions. */
+    inline T fetch_val(const T data) {
+        return data >> _pos_width;
+    }
+    inline int fetch_func(const T data) {
+        return data & ((0x1 << _pos_width) - 1);
+    }
+
 public:
 
     /** Constructor & Destructor. */
@@ -403,7 +411,7 @@ CuckooHashTableCuda_Naive<T>::show_content() {
     for (int i = 0; i < _num_funcs; ++i) {
         std::cout << "Table " << i << ": ";
         for (int j = 0; j < _size; ++j)
-            std::cout << std::setw(10) << fetch_val(_data[i * _size + j], _pos_width) << " ";
+            std::cout << std::setw(10) << fetch_val(_data[i * _size + j]) << " ";
         std::cout << std::endl;
     }
     std::cout << std::endl;

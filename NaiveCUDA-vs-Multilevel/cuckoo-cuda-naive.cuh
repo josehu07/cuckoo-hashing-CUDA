@@ -49,6 +49,14 @@ private:
     };
     int rehash(const T * const vals, const int n, const int depth);
 
+    /** Inline helper functions. */
+    inline T fetch_val(const T data) {
+        return data >> _pos_width;
+    }
+    inline int fetch_func(const T data) {
+        return data & ((0x1 << _pos_width) - 1);
+    }
+
 public:
 
     /** Constructor & Destructor. */
@@ -105,7 +113,7 @@ cuckooInsertKernel_Naive(const T * const vals, const int n,
 
         // Start the test-kick-and-reinsert loops.
         do {
-            int pos = do_hash(cur_val, hash_func_configs, cur_func, size);
+            int pos = do_2nd_hash(cur_val, hash_func_configs, cur_func, size);
             T old_data = atomicExch(&data[cur_func * size + pos], make_data(cur_val, cur_func, pos_width));
             if (old_data != EMPTY_CELL) {
                 cur_val = fetch_val(old_data, pos_width);
@@ -191,7 +199,7 @@ cuckooDeleteKernel_Naive(const T * const vals, const int n,
     if (idx < n) {
         T val = vals[idx];
         for (int i = 0; i < num_funcs; ++i) {
-            int pos = do_hash(val, hash_func_configs, i, size);
+            int pos = do_2nd_hash(val, hash_func_configs, i, size);
             if (fetch_val(data[i * size + pos], pos_width) == val) {
                 data[i * size + pos] = EMPTY_CELL;
                 return;
@@ -253,7 +261,7 @@ cuckooLookupKernel_Naive(const T * const vals, bool * const results, const int n
     if (idx < n) {
         T val = vals[idx];
         for (int i = 0; i < num_funcs; ++i) {
-            int pos = do_hash(val, hash_func_configs, i, size);
+            int pos = do_2nd_hash(val, hash_func_configs, i, size);
             if (fetch_val(data[i * size + pos], pos_width) == val) {
                 results[idx] = true;
                 return;
@@ -353,7 +361,7 @@ CuckooHashTableCuda_Naive<T>::show_content() {
     for (int i = 0; i < _num_funcs; ++i) {
         std::cout << "Table " << i << ": ";
         for (int j = 0; j < _size; ++j)
-            std::cout << std::setw(4) << fetch_val(_data[i * _size + j], _pos_width) << " ";
+            std::cout << std::setw(10) << fetch_val(_data[i * _size + j]) << " ";
         std::cout << std::endl;
     }
     std::cout << std::endl;

@@ -58,6 +58,11 @@ main(void) {
     // DEMO of CUDA multi-level implementation.
     std::cout << "CUDA multi-level implementation DEMO -->" << std::endl << std::endl;
     {
+        if (BUCKET_SIZE != 4) {
+            std::cerr << "ERROR: This demo is only workable when setting BUCKET_SIZE = 4." << std::endl;
+            exit(-1);
+        }
+
         CuckooHashTableCuda_Multi<uint32_t> table_cuda(8, 4 * ceil(log2((double) 8)), 3);
         table_cuda.show_content();
 

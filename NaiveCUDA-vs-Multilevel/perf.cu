@@ -24,15 +24,6 @@ gen_rnd_input(uint32_t * const vals, const int n, const uint32_t limit) {
 }
 
 
-/** Uniform input generator. */
-// static void
-// gen_uni_input(uint32_t * const vals, const int n, const int start) {
-//     for (int i = 0; i < n; ++i)
-//         vals[i] = i + start;
-//     std::random_shuffle(vals, vals + n);
-// }
-
-
 /**
  *
  * Main entrance for the performance test.
@@ -40,8 +31,9 @@ gen_rnd_input(uint32_t * const vals, const int n, const uint32_t limit) {
  * Prerequirests: we assume
  *   1. Value range do not cover EMPTY_CELL (i.e. 0).
  *   2. Value range do not exceed value-field width.
- *   3. No repeated values inserted (so we skipped duplication check).
- *   4. Size must be a multiple of BUCKET_SIZE.
+ *   3. No repeated keys inserted (so we skipped duplication check).
+ *   4. Table size must be a multiple of BUCKET_SIZE.
+ *   5. Only inserting into an empty table. No updating. (o.w. the rehashing part should be rewritten.)
  *
  * Currently supported types:
  *   uint[8, 16, 32]_t

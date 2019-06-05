@@ -7,19 +7,12 @@
 #include <vector>
 #include <cmath>
 #include <cstdlib>
-// #include <thrust/scan.h>
 #include "common.h"
 
 
 /**
  *
  * Cuckoo hash table generic class.
- *
- * Hash function choice:
- *   Use a random integer number, do bit-wise XOR, then modulo table size.
- *   Since XOR gives a uniform randomization, it should be a good choice.
- *
- * To simplify CUDA codes, hash functions are hard coded into the kernel.
  * 
  */
 template <typename T>
@@ -34,8 +27,10 @@ private:
     const int _pos_width;
     const int _num_buckets;
 
-    /** Actual data. */
+    /** Actual data table. */
     T *_data;
+
+    /** Cuckoo hash function set. */
     FuncConfig *_hash_func_configs;
 
     /** Private operations. */
@@ -55,14 +50,6 @@ private:
                                                  + bucket_width};
         }
     };
-
-    /** Inline helper functions. */
-    inline T fetch_val(const T data) {
-        return data >> _pos_width;
-    }
-    inline int fetch_func(const T data) {
-        return data & ((0x1 << _pos_width) - 1);
-    }
 
 public:
 
@@ -94,10 +81,13 @@ public:
 
 /**
  * 
- * Cuckoo: insert operation (bucket kernel + prefix kernel + insert kernel + host function).
+ * Cuckoo: insert operation (bucket kernel + insert kernel + host function).
  *
- * Attention: can only be invoked when table is empty!
- * Attention: assumes that input is uniform!
+ * Attention: Can only be invoked when table is empty!
+ * Attention: Assumes that input is uniform, and all buckets will not overflow!
+ *
+ * Returns:
+ *   Number of rehashings beneath.
  *   
  */
 template <typename T>
@@ -111,10 +101,13 @@ cuckooBucketKernel_Multi(T * const data_buf, const int size,
 
     // Only threads within range are active.
     if (idx < n) {
+
+        // Do 1st-level hashing to get bucket id, then do atomic add to get index inside the bucket.
         T val = vals[idx];
-        int bucket_num = val % num_buckets;
+        int bucket_num = do_1st_hash(val, num_buckets);
         int bucket_ofs = atomicAdd(&counters[bucket_num], 1);
 
+        // Directly write the key into the table buffer.
         if (bucket_ofs >= BUCKET_SIZE)
             printf("ERROR: bucket overflow!\n");
         else
@@ -130,12 +123,12 @@ cuckooInsertKernel_Multi(T * const data, const T * const data_buf, const int siz
                          const int evict_bound, const int pos_width,
                          int * const rehash_requests) {
     
-    // Create local cuckoo table in shared memory.
+    // Create local cuckoo table in shared memory. Size passed in as the third kernel parameter.
     extern __shared__ T local_data[];
     for (int i = 0; i < num_funcs; ++i)
         local_data[i * BUCKET_SIZE + threadIdx.x] = EMPTY_CELL;
 
-    // Get thread index (here in size's view).
+    // Get thread index.
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
     // Only threads within local bucket range are active.
@@ -148,7 +141,7 @@ cuckooInsertKernel_Multi(T * const data, const T * const data_buf, const int siz
 
         // Start the test-kick-and-reinsert loops.
         do {
-            int pos = do_hash(cur_val, hash_func_configs, cur_func, BUCKET_SIZE);
+            int pos = do_2nd_hash(cur_val, hash_func_configs, cur_func, BUCKET_SIZE);
             T old_data = atomicExch(&local_data[cur_func * BUCKET_SIZE + pos],
                                     make_data(cur_val, cur_func, pos_width));
             if (old_data != EMPTY_CELL) {
@@ -164,7 +157,7 @@ cuckooInsertKernel_Multi(T * const data, const T * const data_buf, const int siz
             atomicAdd(rehash_requests, 1);
     }
 
-    // Every thread write the responsible local item into the global data table.
+    // Every thread write its responsible local slot into the global data table.
     __syncthreads();
     for (int i = 0; i < num_funcs; ++i)
         data[i * size + idx] = local_data[i * BUCKET_SIZE + threadIdx.x];
@@ -175,7 +168,7 @@ int
 CuckooHashTableCuda_Multi<T>::insert_vals(const T * const vals, const int n) {
     
     //
-    // Phase 1: distribute keys into buckets.
+    // Phase 1: Distribute keys into buckets.
     //
 
     // Allocate GPU memory.
@@ -196,21 +189,8 @@ CuckooHashTableCuda_Multi<T>::insert_vals(const T * const vals, const int n) {
                                                                               d_vals, n,
                                                                               d_counters, _num_buckets);
 
-    // //
-    // // Do prefix sum on bucket sizes. Using thrust high-performance scan.
-    // //
-
-    // // Fetch counters.
-    // cudaMemcpy(counters, d_counters, num_buckets * sizeof(int), cudaMemcpyDeviceToHost);
-
-    // // Invoke in-place prefix sum algorithm.
-    // thrust::exclusive_scan(counters, counters + num_buckets, counters);
-
-    // // Copy results to GPU memory.
-    // cudaMemcpy(d_counters, counters, num_buckets * sizeof(int), cudaMemcpyHostToDevice);
-
     //
-    // Phase 2: local cuckoo hashings.
+    // Phase 2: Local cuckoo hashing.
     //
 
     // Allocate GPU memory.
@@ -225,7 +205,7 @@ CuckooHashTableCuda_Multi<T>::insert_vals(const T * const vals, const int n) {
     cudaMemcpy(d_hash_func_configs, _hash_func_configs, _num_funcs * sizeof(FuncConfig),
                cudaMemcpyHostToDevice);
 
-    // Invoke insert kernel. Passes shared memory table size by the 3rd argument.
+    // Invoke insert kernel. Passes shared memory table size by the third argument.
     // Loops until no rehashing needed.
     int rehash_count = 0;
     do {
@@ -248,7 +228,7 @@ CuckooHashTableCuda_Multi<T>::insert_vals(const T * const vals, const int n) {
         }
     } while (rehash_count < MAX_DEPTH);
 
-    // Retrive results into data.
+    // Retrive results into main memory data table.
     cudaMemcpy(_data, d_data, (_num_funcs * _size) * sizeof(T), cudaMemcpyDeviceToHost);
 
     // Free GPU resources.
@@ -265,7 +245,7 @@ CuckooHashTableCuda_Multi<T>::insert_vals(const T * const vals, const int n) {
 
 /**
  * 
- * Cuckoo: delete operation (kernel + host functions).
+ * Cuckoo: delete operation (kernel + host function).
  *   
  */
 template <typename T>
@@ -284,7 +264,7 @@ cuckooDeleteKernel_Multi(const T * const vals, const int n,
         int bucket_num = val % num_buckets;
 
         for (int i = 0; i < num_funcs; ++i) {
-            int pos = bucket_num * BUCKET_SIZE + do_hash(val, hash_func_configs, i, BUCKET_SIZE);
+            int pos = bucket_num * BUCKET_SIZE + do_2nd_hash(val, hash_func_configs, i, BUCKET_SIZE);
             if (fetch_val(data[i * size + pos], pos_width) == val) {
                 data[i * size + pos] = EMPTY_CELL;
                 return;
@@ -329,7 +309,7 @@ CuckooHashTableCuda_Multi<T>::delete_vals(const T * const vals, const int n) {
 
 /**
  * 
- * Cuckoo: lookup operation (kernel + host functions).
+ * Cuckoo: lookup operation (kernel + host function).
  *   
  */
 template <typename T>
@@ -348,7 +328,7 @@ cuckooLookupKernel_Multi(const T * const vals, bool * const results, const int n
         int bucket_num = val % num_buckets;
 
         for (int i = 0; i < num_funcs; ++i) {
-            int pos = bucket_num * BUCKET_SIZE + do_hash(val, hash_func_configs, i, BUCKET_SIZE);
+            int pos = bucket_num * BUCKET_SIZE + do_2nd_hash(val, hash_func_configs, i, BUCKET_SIZE);
             if (fetch_val(data[i * size + pos], pos_width) == val) {
                 results[idx] = true;
                 return;
@@ -410,7 +390,7 @@ CuckooHashTableCuda_Multi<T>::show_content() {
     for (int i = 0; i < _num_funcs; ++i) {
         std::cout << "Table " << i << ": ";
         for (int j = 0; j < _size; ++j)
-            std::cout << std::setw(10) << fetch_val(_data[i * _size + j]) << " ";
+            std::cout << std::setw(4) << fetch_val(_data[i * _size + j], _pos_width) << " ";
         std::cout << std::endl;
     }
     std::cout << std::endl;

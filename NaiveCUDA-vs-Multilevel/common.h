@@ -15,7 +15,7 @@
 #define BLOCK_SIZE (256)
 
 
-/** CUDA multi-level thread block size. Also used as bucket size. */
+/** CUDA multi-level thread block size = bucket size. */
 #define BUCKET_SIZE (512)
 
 
@@ -26,13 +26,19 @@ typedef struct {
 } FuncConfig;
 
 
-/** Hard code XOR hash functions and all inline helper functions for CUDA kernels' use. */
+/** Hard code hash functions and all inline helper functions for CUDA kernels' use. */
 template <typename T>
 inline __device__ int
-do_hash(const T val, const FuncConfig * const hash_func_configs, const int func_idx,
-        const int size) {
+do_1st_hash(const T val, const int num_buckets) {
+    return val % num_buckets;   // Simply using modulo as 1st-level hashing.
+}
+
+template <typename T>
+inline __device__ int
+do_2nd_hash(const T val, const FuncConfig * const hash_func_configs, const int func_idx,
+            const int size) {
     FuncConfig fc = hash_func_configs[func_idx];
-    return ((val ^ fc.rv) >> fc.ss) % size;
+    return ((val ^ fc.rv) >> fc.ss) % size;     // XOR function as 2nd-level hashing.
 }
 
 template <typename T>

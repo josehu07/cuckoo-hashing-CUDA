@@ -21,10 +21,6 @@
 /**
  *
  * Cuckoo hash table generic class.
- *
- * Hash function choice:
- *   Use a random integer number, do bit-wise XOR, then modulo table size.
- *   Since XOR gives a uniform randomization, it should be a good choice.
  * 
  */
 template <typename T>
@@ -142,6 +138,7 @@ CuckooHashTable<T>::insert_val(const T val, const int depth) {
         do_swap<int>(&cur_func, &_pos_to_func_map[pos]);
         cur_func = cur_func % _num_funcs + 1;
         evict_count++;
+        
     } while (evict_count < _evict_bound);
 
     // Eviction bound met, need rehashing.

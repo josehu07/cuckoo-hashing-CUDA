@@ -6,31 +6,16 @@
 #include <cstdint>
 
 
-/** Random input generator. */
-// static void
-// gen_rnd_input(uint32_t * const vals, const int n, const uint32_t limit) {
-//     std::map<uint32_t, bool> val_map;
-//     int count = 0;
-//     while (count < n) {
-//         uint32_t val = (rand() % (limit - 1)) + 1;
-//         if (val_map.find(val) != val_map.end())
-//             continue;
-//         val_map[val] = true;
-//         vals[count] = val;
-//         count++;
-//     }
-// }
-
-
 /**
  *
  * Main entrance for the demo.
  * 
- * Prerequirests: we assume
+ * Prerequisits: we assume
  *   1. Value range do not cover EMPTY_CELL (i.e. 0).
  *   2. Value range do not exceed value-field width.
- *   3. No repeated values inserted (so we skipped duplication check).
- *   4. Size must be a multiple of BUCKET_SIZE.
+ *   3. No repeated keys inserted (so we skipped duplication check).
+ *   4. Table size must be a multiple of BUCKET_SIZE.
+ *   5. Only inserting into an empty table. No updating. (o.w. the rehashing part should be rewritten.)
  *
  * Currently supported types:
  *   uint[8, 16, 32]_t
@@ -46,8 +31,6 @@ main(void) {
         table_cuda.show_content();
 
         std::cout << "Insert 6 values -" << std::endl;
-        // uint32_t vals_to_insert[8];
-        // gen_rnd_input(vals_to_insert, 8, 0x1 << 30);
         uint32_t vals_to_insert[6] = {5, 6, 7, 8, 9, 10};
         table_cuda.insert_vals(vals_to_insert, 6, 0);
         table_cuda.show_content();
@@ -79,8 +62,6 @@ main(void) {
         table_cuda.show_content();
 
         std::cout << "Insert 6 values -" << std::endl;
-        // uint32_t vals_to_insert[8];
-        // gen_rnd_input(vals_to_insert, 8, 0x1 << 30);
         uint32_t vals_to_insert[6] = {5, 6, 7, 8, 9, 10};
         table_cuda.insert_vals(vals_to_insert, 6);
         table_cuda.show_content();

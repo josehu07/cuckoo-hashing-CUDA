@@ -29,7 +29,7 @@ gen_rnd_input(uint32_t * const vals, const int n, const uint32_t limit) {
  * Prerequirests: we assume
  *   1. Value range do not cover EMPTY_CELL (i.e. 0).
  *   2. Value range do not exceed value-field width.
- *   3. No repeated values inserted (so we skipped duplication check).
+ *   3. No repeated keys inserted (so we skipped duplication check).
  *
  * Currently supported types:
  *   uint[8, 16, 32]_t

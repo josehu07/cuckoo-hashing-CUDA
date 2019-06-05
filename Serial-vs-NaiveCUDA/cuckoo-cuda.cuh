@@ -99,14 +99,6 @@ private:
     };
     int rehash(const T * const vals, const int n, const int depth);
 
-    /** Inline helper functions. */
-    inline T fetch_val(const T data) {
-        return data >> _pos_width;
-    }
-    inline int fetch_func(const T data) {
-        return data & ((0x1 << _pos_width) - 1);
-    }
-
 public:
 
     /** Constructor & Destructor. */
@@ -136,7 +128,7 @@ public:
 
 /**
  * 
- * Cuckoo: insert operation (kernel + host functions).
+ * Cuckoo: insert operation (kernel + host function).
  *
  * Returns:
  *   Number of rehashings beneath.
@@ -200,7 +192,7 @@ CuckooHashTableCuda_Naive<T>::insert_vals(const T * const vals, const int n, con
                cudaMemcpyHostToDevice);
     cudaMemcpy(d_rehash_requests, &rehash_requests, sizeof(int), cudaMemcpyHostToDevice);
 
-    // Launch the lookup kernel.
+    // Launch the insert kernel.
     cuckooInsertKernel<<<ceil((double) n / BLOCK_SIZE), BLOCK_SIZE>>>(d_vals, n,
                                                                       d_data, _size,
                                                                       d_hash_func_configs, _num_funcs,
@@ -232,7 +224,7 @@ CuckooHashTableCuda_Naive<T>::insert_vals(const T * const vals, const int n, con
 
 /**
  * 
- * Cuckoo: delete operation (kernel + host functions).
+ * Cuckoo: delete operation (kernel + host function).
  *   
  */
 template <typename T>
@@ -276,7 +268,7 @@ CuckooHashTableCuda_Naive<T>::delete_vals(const T * const vals, const int n) {
     cudaMemcpy(d_hash_func_configs, _hash_func_configs, _num_funcs * sizeof(FuncConfig),
                cudaMemcpyHostToDevice);
 
-    // Launch the lookup kernel.
+    // Launch the delete kernel.
     cuckooDeleteKernel<<<ceil((double) n / BLOCK_SIZE), BLOCK_SIZE>>>(d_vals, n,
                                                                       d_data, _size,
                                                                       d_hash_func_configs, _num_funcs,
@@ -294,7 +286,7 @@ CuckooHashTableCuda_Naive<T>::delete_vals(const T * const vals, const int n) {
 
 /**
  * 
- * Cuckoo: lookup operation (kernel + host functions).
+ * Cuckoo: lookup operation (kernel + host function).
  *   
  */
 template <typename T>
@@ -411,7 +403,7 @@ CuckooHashTableCuda_Naive<T>::show_content() {
     for (int i = 0; i < _num_funcs; ++i) {
         std::cout << "Table " << i << ": ";
         for (int j = 0; j < _size; ++j)
-            std::cout << std::setw(10) << fetch_val(_data[i * _size + j]) << " ";
+            std::cout << std::setw(10) << fetch_val(_data[i * _size + j], _pos_width) << " ";
         std::cout << std::endl;
     }
     std::cout << std::endl;

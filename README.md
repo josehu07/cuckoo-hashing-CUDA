@@ -3,6 +3,10 @@
 > Jose @ ShanghaiTech University
 > 2019.05.31
 
+![](https://img.shields.io/github/languages/count/hgz12345ssdlh/cuckoo-hashing-CUDA.svg?color=brightgreen)
+![https://www.rust-lang.org/](https://img.shields.io/github/languages/top/hgz12345ssdlh/cuckoo-hashing-CUDA.svg)
+![](https://img.shields.io/github/languages/code-size/hgz12345ssdlh/cuckoo-hashing-CUDA.svg)
+
 ## Description
 
 Simple proof of concepts of parallel GPU hashing.
